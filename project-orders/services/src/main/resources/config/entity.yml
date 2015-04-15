@@ -1,4 +1,9 @@
 # From services
-- com.orders.web.spg.entity.Request
 - com.orders.entity.Account
+- com.orders.entity.Order
+- com.orders.entity.OrderItem
+- com.orders.entity.Invoice
+- com.orders.entity.Payment
+- com.orders.entity.Credit
+- com.orders.entity.Product
 

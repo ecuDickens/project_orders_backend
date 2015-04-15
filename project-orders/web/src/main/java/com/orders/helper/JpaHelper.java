@@ -1,40 +1,46 @@
 package com.orders.helper;
 
-import com.google.common.base.Strings;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.orders.base.ThrowingFunction1;
-import com.orders.entity.Account;
 import com.orders.exception.HttpException;
 import com.orders.jpa.session.EntitySession;
 import com.orders.jpa.spi.JpaEntityManagerService;
-import org.joda.time.DateTime;
 
+import javax.persistence.EntityExistsException;
 import javax.persistence.EntityManager;
-import javax.persistence.LockModeType;
+import javax.persistence.EntityNotFoundException;
 import javax.persistence.NoResultException;
-import javax.persistence.TypedQuery;
-import java.sql.Timestamp;
+import java.net.HttpURLConnection;
 
 @Singleton
 public class JpaHelper {
 
     private JpaEntityManagerService jpaManagerService;
 
+    public static String account_query = "SELECT a FROM Account a where a.id = :id";
+    public static String full_account_query = "SELECT a, o, i, c FROM Account a LEFT JOIN a.orders o LEFT JOIN a.invoices i LEFT JOIN a.credits c WHERE a.id = :id";
+
     @Inject
     public JpaHelper(JpaEntityManagerService jpaManagerService) {
         this.jpaManagerService = jpaManagerService;
     }
 
+    // Used for executing queries.
     public <T> T executeJpa(final ThrowingFunction1<T, EntityManager, HttpException> jpaFunction) throws HttpException {
-        return jpaManagerService.invoke(new EntitySession<T>() {
-            @Override
-            public T execute(EntityManager entityManager) throws HttpException {
-                return jpaFunction.apply(entityManager);
-            }
-        });
+        try {
+            return jpaManagerService.invoke(new EntitySession<T>() {
+                @Override
+                public T execute(EntityManager entityManager) throws HttpException {
+                    return jpaFunction.apply(entityManager);
+                }
+            });
+        } catch (NoResultException ex) {
+            return null;
+        }
     }
 
+    // Used for creates/updates/deletes.
     public <T> T executeJpaTransaction(final ThrowingFunction1<T, EntityManager, HttpException> jpaFunction) throws HttpException {
         return jpaManagerService.invoke(new EntitySession<T>() {
             @Override
@@ -45,65 +51,18 @@ public class JpaHelper {
                     entityManager.getTransaction().begin();
                     result = jpaFunction.apply(entityManager);
                     entityManager.getTransaction().commit();
+                } catch (EntityNotFoundException e) {
+                    rollback = true;
+                    throw new HttpException(HttpURLConnection.HTTP_INTERNAL_ERROR, String.format("Record was not found. %s", e.getMessage()), e);
+                } catch (NoResultException e) {
+                    rollback = true;
+                    throw new HttpException(HttpURLConnection.HTTP_INTERNAL_ERROR, String.format("Record was not found. %s", e.getMessage()), e);
+                } catch (EntityExistsException t) {
+                    rollback = true;
+                    throw new HttpException(HttpURLConnection.HTTP_INTERNAL_ERROR, String.format("Record already created. %s", t.getMessage()), t);
                 } catch (Throwable t) {
                     rollback = true;
-                } finally {
-                    if (rollback && entityManager.getTransaction().isActive()) {
-                        entityManager.getTransaction().rollback();
-                    }
-                }
-                return result;
-            }
-        });
-    }
-
-    public Long createAccount(final Account account) throws HttpException {
-        return executeJpaTransaction(new ThrowingFunction1<Long, EntityManager, HttpException>() {
-            @Override
-            public Long apply(EntityManager em) throws HttpException {
-                account
-                        .withCreatedDatetime(new Timestamp(DateTime.now().getMillis()))
-                        .withLastModifiedDatetime(new Timestamp(DateTime.now().getMillis()));
-                em.persist(account);
-                em.flush();
-                return account.getId();
-            }
-        });
-    }
-    public Account getAccount(final Long accountId) throws HttpException {
-        try {
-            return executeJpa(new ThrowingFunction1<Account, EntityManager, HttpException>() {
-                @Override
-                public Account apply(EntityManager em) throws HttpException {
-                    TypedQuery<Account> query = em.createQuery("SELECT i FROM Account i where i.id = :id", Account.class);
-                    query.setParameter("id", accountId);
-                    return query.getSingleResult();
-                }
-            });
-        } catch (NoResultException ex) {
-            return null;
-        }
-    }
-    public Account updateAccount(final Account account) throws HttpException {
-        return jpaManagerService.invoke(new EntitySession<Account>() {
-            @Override
-            public Account execute(EntityManager entityManager) throws HttpException {
-                boolean rollback = false;
-                Account result = null;
-                try {
-                    final Account accountForUpdate = getAccount(account.getId());
-                    entityManager.getTransaction().begin();
-                    entityManager.refresh(accountForUpdate, LockModeType.PESSIMISTIC_WRITE);
-                    accountForUpdate
-                            .withEmail(Strings.isNullOrEmpty(account.getEmail()) ? accountForUpdate.getEmail() : account.getEmail())
-                            .withFirstName(Strings.isNullOrEmpty(account.getFirstName()) ? accountForUpdate.getFirstName() : account.getFirstName())
-                            .withLastName(Strings.isNullOrEmpty(account.getLastName()) ? accountForUpdate.getLastName() : account.getLastName())
-                            .withMiddleInitial(Strings.isNullOrEmpty(account.getMiddleInitial()) ? accountForUpdate.getMiddleInitial() : account.getMiddleInitial())
-                            .withGender(Strings.isNullOrEmpty(account.getGender()) ? accountForUpdate.getGender() : account.getGender())
-                            .withLastModifiedDatetime(new Timestamp(DateTime.now().getMillis()));
-                    entityManager.getTransaction().commit();
-                } catch (Throwable t) {
-                    rollback = true;
+                    throw new HttpException(HttpURLConnection.HTTP_INTERNAL_ERROR, String.format("Transaction error. %s", t.getMessage()), t);
                 } finally {
                     if (rollback && entityManager.getTransaction().isActive()) {
                         entityManager.getTransaction().rollback();
