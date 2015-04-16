@@ -55,7 +55,7 @@ public class OrderResource {
         if (null == orderId) {
             return Response.noContent()
                     .status(Response.Status.BAD_REQUEST)
-                    .entity(new ErrorType("Unable to create account"))
+                    .entity(new ErrorType("Unable to place order."))
                     .build();
         }
 
@@ -73,7 +73,7 @@ public class OrderResource {
         });
         if (null == order) {
             return Response.noContent()
-                    .entity(new ErrorType("Account not found"))
+                    .entity(new ErrorType("Order not found"))
                     .build();
         }
         order.clean();

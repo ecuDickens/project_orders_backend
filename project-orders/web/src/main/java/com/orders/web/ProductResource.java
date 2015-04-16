@@ -90,7 +90,7 @@ public class ProductResource {
         });
         if (null == product) {
             return Response.noContent()
-                    .entity(new ErrorType("Account not found"))
+                    .entity(new ErrorType("Product not found"))
                     .build();
         }
         product.clean();

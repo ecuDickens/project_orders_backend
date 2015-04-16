@@ -18,9 +18,6 @@ public class JpaHelper {
 
     private JpaEntityManagerService jpaManagerService;
 
-    public static String account_query = "SELECT a FROM Account a where a.id = :id";
-    public static String full_account_query = "SELECT a, o, i, c FROM Account a LEFT JOIN a.orders o LEFT JOIN a.invoices i LEFT JOIN a.credits c WHERE a.id = :id";
-
     @Inject
     public JpaHelper(JpaEntityManagerService jpaManagerService) {
         this.jpaManagerService = jpaManagerService;

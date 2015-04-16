@@ -93,6 +93,7 @@ public class AccountResource {
         account.clean();
         final DateTime then = DateTime.now();
         final long millis =  then.getMillis() - now.getMillis();   // woohoo, 26 milliseconds.
+        System.out.println(millis);
         return Response.ok(account).build();
     }
 

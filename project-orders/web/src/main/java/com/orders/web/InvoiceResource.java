@@ -35,7 +35,7 @@ public class InvoiceResource {
         });
         if (null == invoice) {
             return Response.noContent()
-                    .entity(new ErrorType("Account not found"))
+                    .entity(new ErrorType("Invoice not found"))
                     .build();
         }
         invoice.clean();
