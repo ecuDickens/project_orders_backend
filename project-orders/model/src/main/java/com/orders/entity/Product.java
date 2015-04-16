@@ -23,7 +23,7 @@ import static org.codehaus.jackson.map.annotate.JsonSerialize.Inclusion.NON_NULL
 public class Product {
     @Id
     @Column(name = "SKU", length = 32)
-    private String id;
+    private String sku;
 
     @Column(name = "CREATED_DATETIME", nullable = false)
     @JsonSerialize(using=TimestampSerializer.class, include = NON_NULL)
@@ -44,11 +44,11 @@ public class Product {
     @OneToMany(mappedBy = "product", targetEntity = OrderItem.class, fetch = LAZY)
     private List<OrderItem> orderItems;
 
-    public String getId() {
-        return id;
+    public String getSku() {
+        return sku;
     }
-    public void setId(String id) {
-        this.id = id;
+    public void setSku(String sku) {
+        this.sku = sku;
     }
 
     @PrePersist
@@ -98,8 +98,8 @@ public class Product {
         this.orderItems = orderItems;
     }
 
-    public Product withId(final String id) {
-        setId(id);
+    public Product withSku(final String sku) {
+        setSku(sku);
         return this;
     }
     public Product withCreatedDatetime(final Timestamp createdDatetime) {

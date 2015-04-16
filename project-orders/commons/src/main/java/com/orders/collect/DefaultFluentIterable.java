@@ -14,8 +14,7 @@ import org.codehaus.jackson.type.JavaType;
 
 import java.io.IOException;
 import java.util.List;
-
-import static com.google.common.collect.Maps.newHashMap;
+import java.util.Set;
 
 /**
  * A default implementation of FluentIterable.
@@ -101,6 +100,11 @@ public class DefaultFluentIterable<T> implements FluentIterable<T> {
     @Override
     public List<T> toList() {
         return Lists.newArrayList(delegate);
+    }
+
+    @Override
+    public Set<T> toSet() {
+        return Sets.newHashSet(delegate);
     }
 
     @Override

@@ -66,7 +66,9 @@ public class Order {
     protected void onCreate() {
         createdDatetime = new Timestamp(DateTime.now().getMillis());
         lastModifiedDatetime = new Timestamp(DateTime.now().getMillis());
-        status = NEW;
+        if (null == status) {
+            status = NEW;
+        }
         total = 0;
         for (OrderItem item : asFluent(orderItems)) {
             total += item.getQuantity() * item.getPrice();

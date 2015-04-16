@@ -1,10 +1,7 @@
 package com.orders.servlet;
 
 import com.google.inject.AbstractModule;
-import com.orders.web.AccountResource;
-import com.orders.web.InvoiceResource;
-import com.orders.web.OrderResource;
-import com.orders.web.ProductResource;
+import com.orders.web.*;
 
 public class APIModule extends AbstractModule {
 
@@ -14,5 +11,6 @@ public class APIModule extends AbstractModule {
         bind(OrderResource.class);
         bind(InvoiceResource.class);
         bind(ProductResource.class);
+        bind(GeneratorResource.class);
     }
 }

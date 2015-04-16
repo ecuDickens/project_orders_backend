@@ -51,6 +51,12 @@ public class Invoice {
     @OneToMany(mappedBy = "invoice", cascade = ALL, fetch = EAGER)
     private List<OrderItem> orderItems;
 
+    @OneToMany(mappedBy = "invoice", cascade = ALL, fetch = EAGER)
+    private List<Payment> payments;
+
+    @OneToMany(mappedBy = "invoice", cascade = ALL, fetch = EAGER)
+    private List<Credit> credits;
+
     public Long getId() {
         return id;
     }
@@ -109,6 +115,20 @@ public class Invoice {
         this.orderItems = orderItems;
     }
 
+    public List<Payment> getPayments() {
+        return payments;
+    }
+    public void setPayments(List<Payment> payments) {
+        this.payments = payments;
+    }
+
+    public List<Credit> getCredits() {
+        return credits;
+    }
+    public void setCredits(List<Credit> credits) {
+        this.credits = credits;
+    }
+
     public Invoice withId(final Long id) {
         setId(id);
         return this;
@@ -137,12 +157,26 @@ public class Invoice {
         setOrderItems(orderItems);
         return this;
     }
+    public Invoice withPayments(final List<Payment> payments) {
+        setPayments(payments);
+        return this;
+    }
+    public Invoice withCredits(final List<Credit> credits) {
+        setCredits(credits);
+        return this;
+    }
 
     @JsonIgnore
     public void clean() {
         account = null;
         for (OrderItem orderItem : asFluent(orderItems)) {
             orderItem.clean();
+        }
+        for (Payment payment : asFluent(payments)) {
+            payment.clean();
+        }
+        for (Credit credit : asFluent(credits)) {
+            credit.clean();
         }
     }
 }

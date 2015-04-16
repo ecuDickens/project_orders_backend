@@ -5,6 +5,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ListMultimap;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * An iterable with fluent-apis for manipulating and interacting
@@ -85,4 +86,6 @@ public interface FluentIterable<T> extends PeekingIterable<T> {
      * iterable in order.
      */
     List<T> toList();
+
+    Set<T> toSet();
 }

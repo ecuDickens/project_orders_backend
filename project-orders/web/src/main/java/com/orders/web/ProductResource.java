@@ -34,13 +34,13 @@ public class ProductResource {
 
     @POST
     public Response createProduct(final Product product) throws HttpException {
-        if (!Strings.isNullOrEmpty(product.getId())) {
+        if (Strings.isNullOrEmpty(product.getSku())) {
             return Response
                     .status(BAD_REQUEST)
                     .entity(new ErrorType("Sku is required."))
                     .build();
         }
-        if (!Strings.isNullOrEmpty(product.getType()) && !VALID_TYPES.contains(product.getType())) {
+        if (Strings.isNullOrEmpty(product.getType()) || !VALID_TYPES.contains(product.getType())) {
             return Response
                     .status(BAD_REQUEST)
                     .entity(new ErrorType("Product Type must be one of: " +VALID_TYPES))
@@ -52,11 +52,11 @@ public class ProductResource {
             public String apply(EntityManager em) throws HttpException {
                 em.persist(product);
                 em.flush();
-                return product.getId();
+                return product.getSku();
             }
         });
 
-        return Response.ok(new Product().withId(sku)).build();
+        return Response.ok(new Product().withSku(sku)).build();
     }
 
     @GET

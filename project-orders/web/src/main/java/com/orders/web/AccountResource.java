@@ -1,6 +1,7 @@
 package com.orders.web;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import com.orders.base.ThrowingFunction1;
 import com.orders.entity.*;
@@ -8,6 +9,7 @@ import com.orders.exception.HttpException;
 import com.orders.helper.JpaHelper;
 import com.orders.matchers.EmailMatcher;
 import com.orders.types.ErrorType;
+import org.joda.time.DateTime;
 
 import javax.persistence.EntityManager;
 import javax.ws.rs.*;
@@ -76,6 +78,7 @@ public class AccountResource {
     @GET
     @Path("/{account_id}")
     public Response getAccount(@PathParam("account_id") final Long accountId) throws HttpException {
+        final DateTime now = DateTime.now();
         final Account account = jpaHelper.executeJpa(new ThrowingFunction1<Account, EntityManager, HttpException>() {
             @Override
             public Account apply(EntityManager em) throws HttpException {
@@ -88,13 +91,14 @@ public class AccountResource {
                     .build();
         }
         account.clean();
+        final DateTime then = DateTime.now();
+        final long millis =  then.getMillis() - now.getMillis();   // woohoo, 26 milliseconds.
         return Response.ok(account).build();
     }
 
     @POST
     @Path("/{account_id}")
     public Response updateAccount(@PathParam("account_id") final Long accountId, final Account account) throws HttpException {
-        // Validate
         if (!Strings.isNullOrEmpty(account.getEmail()) && !emailMatcher.validate(account.getEmail())) {
             return Response
                     .status(BAD_REQUEST)
@@ -118,13 +122,15 @@ public class AccountResource {
                 return forUpdate;
             }
         });
-
+        if (null != forUpdate) {
+            forUpdate.clean();
+        }
         return Response.ok(forUpdate).build();
     }
 
     @POST
     @Path("/{account_id}/bill")
-    public Response updateAccount(@PathParam("account_id") final Long accountId) throws HttpException {
+    public Response billAccount(@PathParam("account_id") final Long accountId) throws HttpException {
         final Invoice invoice = jpaHelper.executeJpaTransaction(new ThrowingFunction1<Invoice, EntityManager, HttpException>() {
             @Override
             public Invoice apply(EntityManager em) throws HttpException {
@@ -150,16 +156,16 @@ public class AccountResource {
                 final Invoice invoice = new Invoice()
                         .withAccount(account)
                         .withTotal(total);
-                em.persist(invoice);
+
                 if (0 < total) {
                     final Integer accountCredit = account.getCreditBalance();
-                    if (0 > accountCredit) {
+                    if (0 < accountCredit) {
                         final Credit credit = new Credit()
                                 .withAccount(account)
                                 .withInvoice(invoice)
                                 .withIsFromInvoiceToAccount(FALSE)
                                 .withTransferAmount(accountCredit > total ? total : accountCredit);
-                        em.persist(credit);
+                        invoice.setCredits(Lists.newArrayList(credit));
 
                         em.refresh(account, PESSIMISTIC_WRITE);
                         account.setCreditBalance(accountCredit > total ? accountCredit - total : 0);
@@ -169,20 +175,20 @@ public class AccountResource {
                         final Payment payment = new Payment()
                                 .withPaymentAmount(total)
                                 .withInvoice(invoice);
-                        em.persist(payment);
+                        invoice.setPayments(Lists.newArrayList(payment));
                     }
                 } else if (0 > total) {
                     final Credit credit = new Credit()
                             .withAccount(account)
                             .withInvoice(invoice)
                             .withIsFromInvoiceToAccount(TRUE)
-                            .withTransferAmount(total);
-                    em.persist(credit);
+                            .withTransferAmount(-total);
+                    invoice.setCredits(Lists.newArrayList(credit));
 
                     em.refresh(account, PESSIMISTIC_WRITE);
                     account.setCreditBalance(account.getCreditBalance() - total);
                 }
-
+                em.persist(invoice);
                 em.flush();
 
                 // Then update the order items with the invoice id and the orders to billed

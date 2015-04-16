@@ -215,6 +215,7 @@ public class OrderItem {
         invoice = null;
         if (null != product) {
             product.clean();
+            productSku = null;
         }
     }
 }

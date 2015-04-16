@@ -89,6 +89,9 @@ public class Account implements Serializable {
     protected void onCreate() {
         createdDatetime = new Timestamp(DateTime.now().getMillis());
         lastModifiedDatetime = new Timestamp(DateTime.now().getMillis());
+        if (null == creditBalance) {
+            creditBalance = 0;
+        }
     }
     public Timestamp getCreatedDatetime() {
         return createdDatetime;
