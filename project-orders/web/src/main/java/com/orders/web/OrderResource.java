@@ -2,6 +2,7 @@ package com.orders.web;
 
 import com.google.inject.Inject;
 import com.orders.base.ThrowingFunction1;
+import com.orders.collect.MoreCollections;
 import com.orders.entity.Account;
 import com.orders.entity.Order;
 import com.orders.entity.OrderItem;
@@ -14,6 +15,8 @@ import javax.persistence.EntityManager;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+
+import static javax.ws.rs.core.Response.Status.BAD_REQUEST;
 
 @Path("/orders")
 @Consumes({ MediaType.APPLICATION_JSON })
@@ -29,6 +32,13 @@ public class OrderResource {
 
     @POST
     public Response placeOrder(final Order order) throws HttpException {
+        if (MoreCollections.isNullOrEmpty(order.getOrderItems())) {
+            return Response
+                    .status(BAD_REQUEST)
+                    .entity(new ErrorType("At least one order item is required."))
+                    .build();
+        }
+
         final Long orderId = jpaHelper.executeJpaTransaction(new ThrowingFunction1<Long, EntityManager, HttpException>() {
             @Override
             public Long apply(EntityManager em) throws HttpException {

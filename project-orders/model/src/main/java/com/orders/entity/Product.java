@@ -55,6 +55,9 @@ public class Product {
     protected void onCreate() {
         createdDatetime = new Timestamp(DateTime.now().getMillis());
         lastModifiedDatetime = new Timestamp(DateTime.now().getMillis());
+        if (null == listPrice) {
+            listPrice = 0;
+        }
     }
     public Timestamp getCreatedDatetime() {
         return createdDatetime;

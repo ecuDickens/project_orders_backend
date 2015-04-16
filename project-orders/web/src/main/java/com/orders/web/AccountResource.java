@@ -3,20 +3,23 @@ package com.orders.web;
 import com.google.common.base.Strings;
 import com.google.inject.Inject;
 import com.orders.base.ThrowingFunction1;
-import com.orders.entity.Account;
+import com.orders.entity.*;
 import com.orders.exception.HttpException;
 import com.orders.helper.JpaHelper;
 import com.orders.matchers.EmailMatcher;
 import com.orders.types.ErrorType;
-import org.joda.time.DateTime;
 
 import javax.persistence.EntityManager;
-import javax.persistence.LockModeType;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.sql.Timestamp;
 
+import static com.orders.collect.MoreIterables.asFluent;
+import static com.orders.entity.EntityValues.Order.Status.BILLED;
+import static com.orders.entity.EntityValues.Order.Status.NEW;
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
+import static javax.persistence.LockModeType.PESSIMISTIC_WRITE;
 import static javax.ws.rs.core.Response.Status.BAD_REQUEST;
 
 @Path("/accounts")
@@ -50,7 +53,7 @@ public class AccountResource {
                     .build();
         }
 
-        final Long profileId = jpaHelper.executeJpaTransaction(new ThrowingFunction1<Long, EntityManager, HttpException>() {
+        final Long accountId = jpaHelper.executeJpaTransaction(new ThrowingFunction1<Long, EntityManager, HttpException>() {
             @Override
             public Long apply(EntityManager em) throws HttpException {
                 em.persist(account);
@@ -59,14 +62,14 @@ public class AccountResource {
             }
         });
 
-        if (null == profileId) {
+        if (null == accountId) {
             return Response
                     .status(BAD_REQUEST)
                     .entity(new ErrorType("Unable to create account"))
                     .build();
         }
 
-        return Response.ok(new Account().withId(profileId)).build();
+        return Response.ok(new Account().withId(accountId)).build();
     }
 
 
@@ -101,17 +104,105 @@ public class AccountResource {
         final Account forUpdate = jpaHelper.executeJpaTransaction(new ThrowingFunction1<Account, EntityManager, HttpException>() {
             @Override
             public Account apply(EntityManager em) throws HttpException {
-                final Account accountForUpdate = em.find(Account.class, accountId);
-                em.refresh(accountForUpdate, LockModeType.PESSIMISTIC_WRITE);
-                accountForUpdate
-                        .withEmail(Strings.isNullOrEmpty(account.getEmail()) ? accountForUpdate.getEmail() : account.getEmail())
-                        .withFirstName(Strings.isNullOrEmpty(account.getFirstName()) ? accountForUpdate.getFirstName() : account.getFirstName())
-                        .withLastName(Strings.isNullOrEmpty(account.getLastName()) ? accountForUpdate.getLastName() : account.getLastName())
-                        .withLastModifiedDatetime(new Timestamp(DateTime.now().getMillis()));
-                return account;
+                final Account forUpdate = em.find(Account.class, accountId);
+                em.refresh(forUpdate, PESSIMISTIC_WRITE);
+                forUpdate
+                        .withEmail(Strings.isNullOrEmpty(account.getEmail()) ? forUpdate.getEmail() : account.getEmail())
+                        .withFirstName(Strings.isNullOrEmpty(account.getFirstName()) ? forUpdate.getFirstName() : account.getFirstName())
+                        .withLastName(Strings.isNullOrEmpty(account.getLastName()) ? forUpdate.getLastName() : account.getLastName())
+                        .withAddress1(Strings.isNullOrEmpty(account.getAddress1()) ? forUpdate.getAddress1() : account.getAddress1())
+                        .withAddress2(Strings.isNullOrEmpty(account.getAddress2()) ? forUpdate.getAddress2() : account.getAddress2())
+                        .withCity(Strings.isNullOrEmpty(account.getCity()) ? forUpdate.getCity() : account.getCity())
+                        .withState(Strings.isNullOrEmpty(account.getState()) ? forUpdate.getState() : account.getState())
+                        .withPostalCode(Strings.isNullOrEmpty(account.getPostalCode()) ? forUpdate.getPostalCode() : account.getPostalCode());
+                return forUpdate;
             }
         });
 
         return Response.ok(forUpdate).build();
+    }
+
+    @POST
+    @Path("/{account_id}/bill")
+    public Response updateAccount(@PathParam("account_id") final Long accountId) throws HttpException {
+        final Invoice invoice = jpaHelper.executeJpaTransaction(new ThrowingFunction1<Invoice, EntityManager, HttpException>() {
+            @Override
+            public Invoice apply(EntityManager em) throws HttpException {
+                final Account account = em.find(Account.class, accountId);
+
+                // Determine the invoice total.
+                Integer total = 0;
+                boolean hasBillableItems = false;
+                for (Order order : asFluent(account.getOrders())) {
+                    if (NEW.equals(order.getStatus())) {
+                        hasBillableItems = true;
+                        for (OrderItem orderItem : asFluent(order.getOrderItems())) {
+                            total += orderItem.getTotal();
+                        }
+                    }
+                }
+
+                if (!hasBillableItems) {
+                    return null;
+                }
+
+                // Create the invoice and any credits/payments.
+                final Invoice invoice = new Invoice()
+                        .withAccount(account)
+                        .withTotal(total);
+                em.persist(invoice);
+                if (0 < total) {
+                    final Integer accountCredit = account.getCreditBalance();
+                    if (0 > accountCredit) {
+                        final Credit credit = new Credit()
+                                .withAccount(account)
+                                .withInvoice(invoice)
+                                .withIsFromInvoiceToAccount(FALSE)
+                                .withTransferAmount(accountCredit > total ? total : accountCredit);
+                        em.persist(credit);
+
+                        em.refresh(account, PESSIMISTIC_WRITE);
+                        account.setCreditBalance(accountCredit > total ? accountCredit - total : 0);
+                        total -= credit.getTransferAmount();
+                    }
+                    if (0 < total) {
+                        final Payment payment = new Payment()
+                                .withPaymentAmount(total)
+                                .withInvoice(invoice);
+                        em.persist(payment);
+                    }
+                } else if (0 > total) {
+                    final Credit credit = new Credit()
+                            .withAccount(account)
+                            .withInvoice(invoice)
+                            .withIsFromInvoiceToAccount(TRUE)
+                            .withTransferAmount(total);
+                    em.persist(credit);
+
+                    em.refresh(account, PESSIMISTIC_WRITE);
+                    account.setCreditBalance(account.getCreditBalance() - total);
+                }
+
+                em.flush();
+
+                // Then update the order items with the invoice id and the orders to billed
+                for (Order order : asFluent(account.getOrders())) {
+                    if (NEW.equals(order.getStatus())) {
+                        em.refresh(order, PESSIMISTIC_WRITE);
+                        order.setStatus(BILLED);
+                        for (OrderItem orderItem : asFluent(order.getOrderItems())) {
+                            em.refresh(orderItem, PESSIMISTIC_WRITE);
+                            orderItem.setInvoice(invoice);
+                        }
+                    }
+                }
+                return invoice;
+            }
+        });
+
+        if (null != invoice) {
+            invoice.clean();
+        }
+        return Response.ok(invoice).build();
     }
 }
