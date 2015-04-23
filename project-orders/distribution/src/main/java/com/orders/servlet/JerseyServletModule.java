@@ -1,8 +1,7 @@
 package com.orders.servlet;
 
-import com.orders.web.AccountResource;
-import com.orders.web.BaseResourceModule;
 import com.google.inject.throwingproviders.ThrowingProviderBinder;
+import com.orders.web.*;
 import com.sun.jersey.api.container.filter.RolesAllowedResourceFilterFactory;
 import com.sun.jersey.api.json.JSONConfiguration;
 import com.sun.jersey.guice.spi.container.servlet.GuiceContainer;
@@ -20,6 +19,10 @@ public class JerseyServletModule extends BaseResourceModule {
         super.configureServlets();
 
         bind(AccountResource.class);
+        bind(GeneratorResource.class);
+        bind(InvoiceResource.class);
+        bind(OrderResource.class);
+        bind(ProductResource.class);
 
         final Map<String, String> params = new HashMap<String, String>();
         params.put(JSONConfiguration.FEATURE_POJO_MAPPING, Boolean.TRUE.toString());
